@@ -3,8 +3,10 @@
 import os
 import xlsxwriter
 import urllib.request
+from bs4 import BeautifulSoup
 import zipfile
 import sys
+import re
 from PyQt5.QtWidgets import *
 from PyQt5 import uic
 
@@ -68,14 +70,29 @@ def scrape_cashflow_statement(raw_data, index, corp):
 	for j in range(len(raw_data)):
 
 		word_list = raw_data[j]
-
+		
+		bool_a = (word_list[11].strip() == "당기순이익") or \
+				(word_list[11].strip() == "연결당기순이익") or \
+				(word_list[11].strip() == "당기순이익(손실)") or \
+				(word_list[11].strip() == "연결분기순이익") 
+		bool_b = (word_list[11].strip() == "배당금의 지급") or (word_list[11].strip() == "배당금지급") 
+		bool_c = (word_list[11].strip() == "유형자산의 취득") or (word_list[11].strip() == "유형자산의취득")
+		bool_d = (word_list[11].strip() == "무형자산의 취득") or (word_list[11].strip() == "무형자산의취득")
+		bool_e = (word_list[11].strip() == "투자부동산의 취득") or (word_list[11].strip() == "투자부동산의취득")
+		bool_f = (word_list[11].strip() == "유형자산의 처분") or (word_list[11].strip() == "유형자산의처분")
+		bool_g = (word_list[11].strip() == "무형자산의 처분") or (word_list[11].strip() == "무형자산의처분")
+		bool_h = (word_list[11].strip() == "투자부동산의 처분") or (word_list[11].strip() == "투자부동산의처분")
 
 		#영업활동현금흐름
-		if (word_list[2] == corp) and (word_list[10] == "ifrs_CashFlowsFromUsedInOperatingActivities"):
+		if (word_list[2] == corp) and ((word_list[10] == "ifrs_CashFlowsFromUsedInOperatingActivities") or \
+			((re.compile('entity[a-zA-Z0-9_]*_StatementOfCashFlowsAbstract').search(word_list[10])) and (word_list[11].strip() == "영업활동 현금흐름"))):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['CashFlowsFromUsedInOperatingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#당기순이익(손실)
-		elif (word_list[2] == corp) and (word_list[10] == "dart_ProfitLossForStatementOfCashFlows"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "dart_ProfitLossForStatementOfCashFlows") or \
+				((re.compile('entity[a-zA-Z0-9_]*_StatementOfCashFlowsAbstract').search(word_list[10])) and bool_a) or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInOperatingActivities').search(word_list[10])) and bool_a)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['ProfitLossForStatementOfCashFlows']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#당기순이익조정을 위한 가감
@@ -83,7 +100,9 @@ def scrape_cashflow_statement(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['AdjustmentsForReconcileProfitLoss']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#감가상각비
-		elif (word_list[2] == corp) and (word_list[10] == "dart_AdjustmentsForDepreciationExpense"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "dart_AdjustmentsForDepreciationExpense") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInOperatingActivities').search(word_list[10])) and (word_list[11].strip() == "감가상각비"))):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['AdjustmentsForDepreciationExpense']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#투자활동현금흐름
@@ -91,27 +110,39 @@ def scrape_cashflow_statement(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['CashFlowsFromUsedInInvestingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#유형자산의 취득
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "ifrs_PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInInvestingActivities').search(word_list[10])) and bool_c)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#무형자산의 취득
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "ifrs_PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInInvestingActivities').search(word_list[10])) and bool_d)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#투자부동산의 취득
-		elif (word_list[2] == corp) and (word_list[10] == "dart_PurchaseOfInvestmentProperty"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "dart_PurchaseOfInvestmentProperty") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInInvestingActivities').search(word_list[10])) and bool_e)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['PurchaseOfInvestmentProperty']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#유형자산의 처분
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "ifrs_ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInInvestingActivities').search(word_list[10])) and bool_f)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['ProceedsFromSalesOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#무형자산의 처분
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_ProceedsFromSalesOfIntangibleAssetsClassifiedAsInvestingActivities"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "ifrs_ProceedsFromSalesOfIntangibleAssetsClassifiedAsInvestingActivities") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInInvestingActivities').search(word_list[10])) and bool_g)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['ProceedsFromSalesOfIntangibleAssetsClassifiedAsInvestingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#투자부동산의 처분
-		elif (word_list[2] == corp) and (word_list[10] == "dart_ProceedsFromSalesOfInvestmentProperty"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "dart_ProceedsFromSalesOfInvestmentProperty") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInInvestingActivities').search(word_list[10])) and bool_h)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['ProceedsFromSalesOfInvestmentProperty']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#재무활동현금흐름
@@ -123,7 +154,9 @@ def scrape_cashflow_statement(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['ProceedsFromShortTermBorrowings']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#배당금지급
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_DividendsPaidClassifiedAsFinancingActivities"):
+		elif (word_list[2] == corp) and \
+				((word_list[10] == "ifrs_DividendsPaidClassifiedAsFinancingActivities") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CashFlowsFromUsedInFinancingActivities').search(word_list[10])) and bool_b)):
 			if word_list[index].strip() != "":
 				cashflow_sub_list['DividendsPaidClassifiedAsFinancingActivities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#기초현금및현금성자산
@@ -136,6 +169,16 @@ def scrape_cashflow_statement(raw_data, index, corp):
 				cashflow_sub_list['CashAndCashEquivalentsAtEndOfPeriodCf']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 
 	return cashflow_sub_list
+
+def scrape_corp_code(raw_data, corp):
+	
+	for j in range(len(raw_data)):
+		word_list = raw_data[j]
+		if (word_list[2] == corp):
+			code = word_list[1]
+			break
+
+	return code.strip().replace('[','').replace(']','')
 
 def scrape_balance_sheet(raw_data, index, corp):
 
@@ -170,6 +213,15 @@ def scrape_balance_sheet(raw_data, index, corp):
 	for j in range(len(raw_data)):
 
 		word_list = raw_data[j]
+	
+		bool_a = re.compile('^매출채권').search(word_list[11].strip())
+		bool_b = (re.compile('^매입채무').search(word_list[11].strip()) or re.compile('^단기매입채무').search(word_list[11].strip()))
+		bool_c = re.compile('^자[ ]*본[ ]*금').search(word_list[11].strip())
+		bool_d = (word_list[11].strip() == "주식발행초과금") or (word_list[11].strip() == "자본잉여금") or (word_list[11].strip() == "연결자본잉여금")
+		bool_e = (word_list[11].strip() == "이익잉여금") or (word_list[11].strip() == "연결이익잉여금")
+
+		#bool_a = (word_list[11].strip() == "매출채권") or (word_list[11].strip() == "매출채권 및 기타유동채권")
+		#bool_b = (word_list[11].strip() == "매입채무") or (word_list[11].strip() == "단기매입채무") or (word_list[11].strip() == "매입채무 및 기타유동채무") 
 
 		#유동자산
 		if (word_list[2] == corp) and (word_list[10] == "ifrs_CurrentAssets"):
@@ -180,11 +232,16 @@ def scrape_balance_sheet(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['CashAndCashEquivalents']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		# 단기금융상품
-		elif (word_list[2] == corp) and ((word_list[10] == "dart_ShortTermDepositsNotClassifiedAsCashEquivalents") or (word_list[10] == "ifrs_OtherCurrentFinancialAssets")):
+		elif (word_list[2] == corp) and ((word_list[10] == "dart_ShortTermDepositsNotClassifiedAsCashEquivalents") or \
+				(word_list[10] == "ifrs_OtherCurrentFinancialAssets") or \
+				((re.compile('entity[a-zA-Z0-9_]*_CurrentAssets').search(word_list[10])) and (word_list[11].strip() == "단기금융상품"))):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['ShortTermDeposits']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#매출채권 및 기타유동채권
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_TradeAndOtherCurrentReceivables"):
+		elif (word_list[2] == corp) and \
+				(((word_list[10] == "ifrs_TradeAndOtherCurrentReceivables") and bool_a) or \
+				((word_list[10] == "dart_ShortTermTradeReceivable") and bool_a) or \
+				((re.compile('entity[a-zA-Z0-9_]*_CurrentAssets').search(word_list[10])) and bool_a)):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['TradeAndOtherCurrentReceivables']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#재고자산
@@ -196,7 +253,10 @@ def scrape_balance_sheet(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['NoncurrentAssets']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		# 장기매도가능금융자산
-		elif (word_list[2] == corp) and ((word_list[10] == "dart_LongTermDepositsNotClassifiedAsCashEquivalents") or (word_list[10] == "ifrs_OtherNoncurrentFinancialAssets")):
+		elif (word_list[2] == corp) and ((word_list[10] == "dart_LongTermDepositsNotClassifiedAsCashEquivalents") or \
+				(word_list[10] == "ifrs_OtherNoncurrentFinancialAssets") or \
+				#(word_list[10] == "dart_NonCurrentAvailableForSaleFinancialAssets") or \
+				((re.compile('entity[a-zA-Z0-9_]*_NoncurrentAssets').search(word_list[10])) and (word_list[11].strip() == "장기매도가능금융자산"))):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['LongTermDeposits']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#유형자산
@@ -204,7 +264,10 @@ def scrape_balance_sheet(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['PropertyPlantAndEquipment']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		# 무형자산
-		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_InvestmentProperty") or (word_list[10] == "dart_GoodwillGross")):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_InvestmentProperty") or \
+				(word_list[10] == "ifrs_IntangibleAssetsOtherThanGoodwill") or \
+				(word_list[10] == "dart_GoodwillGross") or \
+				((re.compile('entity[a-zA-Z0-9_]*_NoncurrentAssets').search(word_list[10])) and (word_list[11].strip() == "무형자산"))):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['InvestmentProperty']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		# 이연법인세자산
@@ -220,7 +283,10 @@ def scrape_balance_sheet(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['CurrentLiabilities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#매입채무
-		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_TradeAndOtherCurrentPayables") or (word_list[10] == "dart_ShortTermTradePayables")):
+		elif (word_list[2] == corp) and \
+				(((word_list[10] == "ifrs_TradeAndOtherCurrentPayables") and bool_b) or \
+				((word_list[10] == "dart_ShortTermTradePayables") and bool_b) or \
+				((re.compile('entity[a-zA-Z0-9_]*_CurrentLiabilities').search(word_list[10])) and bool_b)):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['TradeAndOtherCurrentPayables']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#단기차입금
@@ -232,7 +298,8 @@ def scrape_balance_sheet(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['NoncurrentLiabilities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		# 사채
-		elif (word_list[2] == corp) and (word_list[10] == "dart_BondsIssued"):
+		elif (word_list[2] == corp) and ((word_list[10] == "dart_BondsIssued") or \
+				((re.compile('entity[a-zA-Z0-9_]*_NoncurrentLiabilities').search(word_list[10])) and (word_list[11].strip() == "사채"))):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['BondsIssued']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#장기차입금
@@ -248,15 +315,26 @@ def scrape_balance_sheet(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['Liabilities']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#자본금
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_IssuedCapital"):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_IssuedCapital") or \
+				(word_list[10] == "dart_ContributedEquity") or \
+				((re.compile('entity[a-zA-Z0-9_]*_EquityAttributableToOwnersOfParent').search(word_list[10])) and bool_c) or \
+				((re.compile('entity[a-zA-Z0-9_]*_EquityAbstract').search(word_list[10])) and bool_c)):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['IssuedCapital']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
-		# 주식발행초과금
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_SharePremium"):
+		# 자본잉여금
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_SharePremium") or \
+				((word_list[10] == "dart_CapitalSurplus") and (word_list[11].strip() == "자본잉여금")) or \
+				((word_list[10] == "dart_ElementsOfOtherStockholdersEquity") and (word_list[11].strip() == "자본잉여금")) or \
+				((re.compile('entity[a-zA-Z0-9_]*_EquityAttributableToOwnersOfParent').search(word_list[10])) and bool_d) or \
+				((re.compile('entity[a-zA-Z0-9_]*_ContributedEquity').search(word_list[10])) and bool_d) or \
+				((re.compile('entity[a-zA-Z0-9_]*_EquityAbstract').search(word_list[10])) and bool_d)):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['SharePremium']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#이익잉여금(결손금)
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_RetainedEarnings"):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_RetainedEarnings") or \
+				((re.compile('entity[a-zA-Z0-9_]*_EquityAttributableToOwnersOfParent').search(word_list[10])) and bool_e) or \
+				((re.compile('entity[a-zA-Z0-9_]*_ContributedEquity').search(word_list[10])) and bool_e) or \
+				((re.compile('entity[a-zA-Z0-9_]*_EquityAbstract').search(word_list[10])) and bool_e)):
 			if word_list[index].strip() != "":
 				balance_sheet_sub_list['RetainedEarnings']	=	float(word_list[index].replace(',','').replace('\"',''))/unit
 		#자본총계
@@ -288,6 +366,9 @@ def scrape_income_statement(raw_data, index, corp):
 	for j in range(len(raw_data)):
 
 		word_list = raw_data[j]
+
+		bool_a = (word_list[11].strip() == "지분법이익") or (word_list[11].strip() == "공동기업및관계기업투자손익") or (word_list[11].strip() == "지분법투자관련 손익") or (word_list[11].strip() == "지분법관련손익")
+		bool_b = re.compile('보통주').search(word_list[11].strip())
 
 		# 매출액 or 영업수익
 		if (word_list[2] == corp) and (word_list[10] == "ifrs_Revenue"):
@@ -322,27 +403,36 @@ def scrape_income_statement(raw_data, index, corp):
 			if word_list[index].strip() != "":
 				profit = float(word_list[index].replace(",","").replace('\"',''))/unit
 		# 기본주당순이익
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_BasicEarningsLossPerShare"):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_BasicEarningsLossPerShare") or \
+				(word_list[10] == "ifrs_BasicEarningsLossPerShare") or \
+				((re.compile('entity[a-zA-Z0-9_]*_BasicEarningsLossPerShare').search(word_list[10])) and bool_b)):
 			if word_list[index].strip() != "":
 				basic_eps = float(word_list[index].replace(",","").replace('\"',''))
 		#기타수익
-		elif (word_list[2] == corp) and (word_list[10] == "dart_OtherGains"):
+		elif (word_list[2] == corp) and ((word_list[10] == "dart_OtherGains") or \
+				((re.compile('entity[a-zA-Z0-9_]*_OperatingIncomeLoss').search(word_list[10])) and (word_list[11].strip() == "기타수익"))):
 			if word_list[index].strip() != "":
 				other_gain = float(word_list[index].replace(",","").replace('\"',''))/unit
 		#기타비용
-		elif (word_list[2] == corp) and (word_list[10] == "dart_OtherLosses"):
+		elif (word_list[2] == corp) and ((word_list[10] == "dart_OtherLosses") or \
+				((re.compile('entity[a-zA-Z0-9_]*_OperatingIncomeLoss').search(word_list[10])) and (word_list[11].strip() == "기타비용"))):
 			if word_list[index].strip() != "":
 				other_loss = float(word_list[index].replace(",","").replace('\"',''))/unit
 		#금융수익
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_FinanceIncome"):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_FinanceIncome") or \
+				((re.compile('entity[a-zA-Z0-9_]*_OperatingIncomeLoss').search(word_list[10])) and (word_list[11].strip() == "금융수익"))):
 			if word_list[index].strip() != "":
 				finance_income = float(word_list[index].replace(",","").replace('\"',''))/unit
 		#금융비용
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_FinanceCosts"):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_FinanceCosts") or \
+				((re.compile('entity[a-zA-Z0-9_]*_OperatingIncomeLoss').search(word_list[10])) and (word_list[11].strip() == "금융비용")) or \
+				((re.compile('entity[a-zA-Z0-9_]*_IncomeStatementAbstract').search(word_list[10])) and (word_list[11].strip() == "금융비용"))):
 			if word_list[index].strip() != "":
 				finance_cost = float(word_list[index].replace(",","").replace('\"',''))/unit
 		#지분법이익
-		elif (word_list[2] == corp) and (word_list[10] == "ifrs_ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod"):
+		elif (word_list[2] == corp) and ((word_list[10] == "ifrs_ShareOfProfitLossOfAssociatesAndJointVenturesAccountedForUsingEquityMethod") or \
+				((re.compile('entity[a-zA-Z0-9_]*_StatementOfComprehensiveIncomeAbstract').search(word_list[10])) and bool_a) or \
+				((re.compile('entity[a-zA-Z0-9_]*_IncomeStatementAbstract').search(word_list[10])) and bool_a)):
 			if word_list[index].strip() != "":
 				associates_profit = float(word_list[index].replace(",","").replace('\"',''))/unit
 
@@ -571,7 +661,9 @@ def get_individual_balance_sheet_year(corp):
 	raw_data = read_raw_data(file_name)
 	balance_sheet_sub_list.append(scrape_balance_sheet(raw_data, 12, corp))
 
-	return balance_sheet_sub_list
+	code = scrape_corp_code(raw_data, corp)
+	
+	return balance_sheet_sub_list, code
 	
 def get_individual_balance_sheet_quarter(corp):
 
@@ -936,8 +1028,9 @@ def run_dart(corp):
 	
 	# Read individual balance sheet
 	print("Read individual balance sheet")
-	individual_balance_sheet_sub_list		= get_individual_balance_sheet_year(corp)
+	individual_balance_sheet_sub_list, code	= get_individual_balance_sheet_year(corp)
 	individual_balance_sheet_sub_list_q		= get_individual_balance_sheet_quarter(corp)
+	print(code)
 
 	balance_sheet_sub_list.reverse()
 	balance_sheet_sub_list_q.reverse()
@@ -959,6 +1052,8 @@ def run_dart(corp):
 	individual_cashflow_statement_sub_list.reverse()
 	individual_cashflow_statement_sub_list_q.reverse()
 
+	eps_list, dps_list, dy_list, pbr_list, per_list = get_info_from_itooza(code)
+	
 	# Write excel file
 	workbook_name = "result_"+corp+".xlsx"
 	cur_dir = os.getcwd()
@@ -1261,7 +1356,7 @@ def run_dart(corp):
 	worksheet_1.write(offset + 18, 0, "  이연법인세부채")
 	worksheet_1.write(offset + 19, 0, "부채총계")
 	worksheet_1.write(offset + 20, 0, "  자본금")
-	worksheet_1.write(offset + 21, 0, "  주식발행초과금")
+	worksheet_1.write(offset + 21, 0, "  자본잉여금")
 	worksheet_1.write(offset + 22, 0, "  이익잉여금")
 	worksheet_1.write(offset + 23, 0, "자본총계")
 	
@@ -1322,7 +1417,7 @@ def run_dart(corp):
 	worksheet_2.write(offset + 18, 0, "  이연법인세부채")
 	worksheet_2.write(offset + 19, 0, "부채총계")
 	worksheet_2.write(offset + 20, 0, "  자본금")
-	worksheet_2.write(offset + 21, 0, "  주식발행초과금")
+	worksheet_2.write(offset + 21, 0, "  자본잉여금")
 	worksheet_2.write(offset + 22, 0, "  이익잉여금")
 	worksheet_2.write(offset + 23, 0, "자본총계")
 	
@@ -1386,7 +1481,7 @@ def run_dart(corp):
 	worksheet_3.write(offset + 18, 0, "  이연법인세부채")
 	worksheet_3.write(offset + 19, 0, "부채총계")
 	worksheet_3.write(offset + 20, 0, "  자본금")
-	worksheet_3.write(offset + 21, 0, "  주식발행초과금")
+	worksheet_3.write(offset + 21, 0, "  자본잉여금")
 	worksheet_3.write(offset + 22, 0, "  이익잉여금")
 	worksheet_3.write(offset + 23, 0, "자본총계")
 	
@@ -1446,7 +1541,7 @@ def run_dart(corp):
 	worksheet_4.write(offset + 18, 0, "  이연법인세부채")
 	worksheet_4.write(offset + 19, 0, "부채총계")
 	worksheet_4.write(offset + 20, 0, "  자본금")
-	worksheet_4.write(offset + 21, 0, "  주식발행초과금")
+	worksheet_4.write(offset + 21, 0, "  자본잉여금")
 	worksheet_4.write(offset + 22, 0, "  이익잉여금")
 	worksheet_4.write(offset + 23, 0, "자본총계")
 	
@@ -1673,6 +1768,104 @@ def run_dart(corp):
 		worksheet_4.write(offset + 15, k+1, individual_cashflow_statement_sub_list_q[k]['CashAndCashEquivalentsAtBeginningOfPeriodCf'], num2_format)
 		worksheet_4.write(offset + 16, k+1, individual_cashflow_statement_sub_list_q[k]['CashAndCashEquivalentsAtEndOfPeriodCf'], num2_format)
 
+	worksheet_raw = workbook.add_worksheet('지표_itooza')
+
+	worksheet_raw.write(0, 0, "정보", filter_format)
+	worksheet_raw.set_column('A:A', 15)
+	worksheet_raw.write(0, 1, "2017.12", filter_format)
+	worksheet_raw.write(0, 2, "2016.12", filter_format)
+	worksheet_raw.write(0, 3, "2015.12", filter_format)
+	worksheet_raw.write(0, 4, "2014.12", filter_format)
+	worksheet_raw.write(0, 5, "2013.12", filter_format)
+	worksheet_raw.write(0, 6, "2012.12", filter_format)
+	worksheet_raw.write(0, 7,  "2011.12", filter_format)
+	worksheet_raw.write(0, 8,  "2010.12", filter_format)
+	worksheet_raw.write(0, 9,  "2009.12", filter_format)
+	worksheet_raw.write(0, 10,  "2008.12", filter_format)
+	worksheet_raw.write(0, 11,  "2007.12", filter_format)
+	worksheet_raw.write(0, 12,  "2006.12", filter_format)
+
+	worksheet_raw.write(1, 0, "주당순이익(연결)", filter_format2)
+	worksheet_raw.write(2, 0, "주당배당금", filter_format2)
+	worksheet_raw.write(3, 0, "시가배당률(%)", filter_format2)
+	worksheet_raw.write(4, 0, "PER", filter_format2)
+	worksheet_raw.write(5, 0, "PBR", filter_format2)
+
+	for l in range(len(eps_list)):
+		worksheet_raw.write(1, l+1,	eps_list[l], num2_format)
+		worksheet_raw.write(2, l+1, dps_list[l], num2_format)
+		worksheet_raw.write(3, l+1, dy_list[l],	 num_format)
+		worksheet_raw.write(4, l+1, per_list[l], num_format)
+		worksheet_raw.write(5, l+1, pbr_list[l], num_format)
+
+def get_info_from_itooza(code):
+	### Get information from itooza
+	eps_list	= []
+	dps_list 	= []
+	dy_list		= []
+	pbr_list	= []
+	per_list 	= []
+
+	url = "http://search.itooza.com/index.htm?seName=" + code
+	print(url)
+
+	handle = None
+	while handle == None:
+		try:
+			handle = urllib.request.urlopen(url)
+			#print(handle)
+		except:
+			pass
+
+	data = handle.read()
+	soup = BeautifulSoup(data, 'html.parser', from_encoding='utf-8')
+	
+	# Find table
+	table = soup.findAll('div', {'id':'indexTable2'})
+	tr_list = table[0].findAll('tr')
+
+	# Get information of EPS
+	td_list = tr_list[1].findAll('td')
+	for tds  in td_list:
+		if tds.text == 'N/A':
+			eps_list.append(0.0)
+		else:
+			eps_list.append(float(tds.text.replace(',','')))
+	
+	# Get information of DPS
+	td_list = tr_list[6].findAll('td')
+	for tds  in td_list:
+		if tds.text == 'N/A':
+			dps_list.append(0.0)
+		else:
+			dps_list.append(float(tds.text.replace(',','')))
+
+	# Get information of DY
+	td_list = tr_list[7].findAll('td')
+	for tds  in td_list:
+		if tds.text == 'N/A':
+			dy_list.append(0.0)
+		else:
+			dy_list.append(float(tds.text.replace(',','')))
+
+	# Get information of PER 
+	td_list = tr_list[3].findAll('td')
+	for tds  in td_list:
+		if tds.text == 'N/A':
+			per_list.append(0.0)
+		else:
+			per_list.append(float(tds.text.replace(',','')))
+
+	# Get information of PBR 
+	td_list = tr_list[5].findAll('td')
+	for tds  in td_list:
+		if tds.text == 'N/A':
+			pbr_list.append(0.0)
+		else:
+			pbr_list.append(float(tds.text.replace(',','')))
+
+	return eps_list, dps_list, dy_list, pbr_list, per_list
+
 class MyWindow(QMainWindow):
 	def __init__(self):
 		super().__init__()
@@ -1740,7 +1933,7 @@ class MyWindow(QMainWindow):
 		self.label.setText("Done!!")
 	
 	def info_clicked(self):
-		QMessageBox.about(self, "Version 0.0", "<a href='http://blog.naver.com/jaden-agent'>blog.naver.com/jaden-agent</a>")
+		QMessageBox.about(self, "Version 0.0", "<a href='http://blog.naver.com/jaden-agent/221222659414'>blog.naver.com/jaden-agent</a>")
 	
 	#def lineEditChanged(self):
 	#	self.statusBar.showMessage(self.lineEdit.text())
